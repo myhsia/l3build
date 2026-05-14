@@ -1,6 +1,6 @@
 --[[
 
-File l3build-variables.lua Copyright (C) 2018-2025 The LaTeX Project
+File l3build-variables.lua Copyright (C) 2018-2026 The LaTeX Project
 
 It may be distributed and/or modified under the conditions of the
 LaTeX Project Public License (LPPL), either version 1.3c of this
@@ -75,7 +75,7 @@ end
 -- All of these may be set earlier, so an initialized conditionally
 auxfiles           = auxfiles           or {"*.aux", "*.lof", "*.lot", "*.toc"}
 bibfiles           = bibfiles           or {"*.bib"}
-binaryfiles        = binaryfiles        or {"*.pdf", "*.zip"}
+binaryfiles        = binaryfiles        or {"*.otf", "*.pdf", "*.pfb", "*.pfm", "*.tfm", "*.ttf", "*.vf", "*.zip"}
 bstfiles           = bstfiles           or {"*.bst"}
 checkfiles         = checkfiles         or { }
 checksuppfiles     = checksuppfiles     or { }
@@ -209,6 +209,9 @@ typesetruns  = typesetruns  or 3
 if recordstatus == nil then
   recordstatus = false
 end
+if xetexnopdf == nil then
+  xetexnopdf = true
+end
 
 -- Extensions for various file types: used to abstract out stuff a bit
 bakext = bakext or ".bak"
@@ -250,4 +253,7 @@ tdsdirs = tdsdirs or {}
 -- Upload settings
 curlexe  = curlexe  or "curl"
 uploadconfig = uploadconfig or {}
-ctanupload   = ctanupload   or "ask"
+-- if "--dry-run" is used, ctanupload is set false in l3build-upload.lua
+if ctanupload == nil then
+  ctanupload = "ask"
+end

@@ -1,6 +1,6 @@
 --[[
 
-File l3build-check.lua Copyright (C) 2018-2025 The LaTeX Project
+File l3build-check.lua Copyright (C) 2018-2026 The LaTeX Project
 
 It may be distributed and/or modified under the conditions of the
 LaTeX Project Public License (LPPL), either version 1.3c of this
@@ -122,6 +122,12 @@ local function normalize_log(content,engine,errlevels)
     end
     return false
   end
+  -- version/date patterns
+  local checkpatterns = checkpatterns or {}
+  -- Semantic version-like ones
+  table.insert(checkpatterns, "v%d+%.%d+%.%d+[%d%a.+%-]*")
+  -- Classical LaTeX version strings
+  table.insert(checkpatterns, "v%d+%.?%d?%d?%w?")
     -- Substitutions to remove some non-useful changes
   local function normalize(line,lastline,drop_fd)
     if drop_fd then
@@ -174,11 +180,10 @@ local function normalize_log(content,engine,errlevels)
     end
     -- Deal with dates
     if match(line, "[^<]%d%d%d%d[/%-]%d%d[/%-]%d%d") then
-        line = gsub(line,"%d%d%d%d[/%-]%d%d[/%-]%d%d","....-..-..")
-        -- Semantic version-like ones
-        line = gsub(line,"v%d+%.%d+%.%d+[%d%a.+%-]*","v...")
-        -- Classical LaTeX version strings
-        line = gsub(line,"v%d+%.?%d?%d?%w?","v...")
+      line = gsub(line,"%d%d%d%d[/%-]%d%d[/%-]%d%d","....-..-..")
+      for _,vpattern in ipairs(checkpatterns) do
+        line = gsub(line,vpattern,"v...")
+      end
     end
     -- Deal with leading spaces for file and page number lines
     line = gsub(line,"^ *%[(%d)","[%1")
@@ -301,6 +306,9 @@ local function normalize_log(content,engine,errlevels)
     -- Remove lua data reference ids
     line = gsub(line, "<lua data reference [0-9]+>",
                       "<lua data reference ...>")
+    -- Remove lua function reference ids
+    line = gsub(line, "<function reference [0-9]+>",
+                      "<function reference ...>")
     -- Unicode engines display chars in the upper half of the 8-bit range:
     -- tidy up to match pdfTeX if an ASCII engine is in use
     if next(asciiengines) then
@@ -318,7 +326,7 @@ local function normalize_log(content,engine,errlevels)
   for line in gmatch(content, "([^\n]*)\n") do
     if match(line,"^%-%-INSERT%-PDF%-TAGS %.*") then
        local xmlh=io.popen("show-pdf-tags --xml " .. testdir .. "/" .. line:gsub("%-%-INSERT%-PDF%-TAGS ",""),"r")
-       local xml = assert(xmlh:read('*a'))
+       local xml = gsub(assert(xmlh:read('*a')),"\r\n","\n")
        xmlh:close()
       new_content = new_content .. xml
     elseif line == "START-TEST-LOG" then
@@ -547,9 +555,19 @@ local function normalize_lua_log(content,luatex)
   end
   local new_content = ""
   local lastline = ""
+  local nochange = false
   local dropping = false
   for line in gmatch(content, "([^\n]*)\n") do
-    line, lastline, dropping = normalize(line, lastline, dropping)
+    -- Skip LuaTeX-specific normalization for \SHOWPDFTAGS output
+    if line == "<PDF>" then
+      nochange = true
+      lastline = ""
+    elseif line == "</PDF>" then
+      nochange = false
+    end
+    if not nochange then
+      line, lastline, dropping = normalize(line, lastline, dropping)
+    end
     if not match(line, "^ *$") then
       new_content = new_content .. line .. os_newline
     end
@@ -788,7 +806,8 @@ function runtest(name, engine, hide, ext, test_type, breakout)
     format = " --fmt=" .. format
   end
   -- Special casing for XeTeX engine
-  if match(engine, "xetex") and test_type.generated ~= pdfext then
+  if xetexnopdf and 
+      match(engine, "xetex") and test_type.generated ~= pdfext then
     checkopts = checkopts .. " -no-pdf"
   end
   -- Special casing for ConTeXt
